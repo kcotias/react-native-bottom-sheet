@@ -4,7 +4,8 @@ import {
   Modal,
   TouchableOpacity,
   Animated,
-  PanResponder
+  PanResponder,
+  BackHandler
 } from "react-native";
 import styles from "./styles";
 
@@ -20,6 +21,25 @@ class BottomSheet extends Component {
     this.createPanResponder(props);
   }
 
+  _backPressHandler = () => {
+    this.setModalVisible(false);
+    return true;
+  }
+
+  addBackPressEventListner() {
+    //If useModal is not true, implement custom back press handler
+    if (!this.props.useModal) {
+      BackHandler.addEventListener('hardwareBackPress', this._backPressHandler)
+    }
+  }
+
+  removeBackPressEventListner() {
+    //Remove custom back press handler when unmounting
+    if (!this.props.useModal) {
+      BackHandler.removeEventListener('hardwareBackPress', this._backPressHandler)
+    }
+  }
+
   setModalVisible(visible) {
     const {
       closeFunction,
@@ -31,11 +51,13 @@ class BottomSheet extends Component {
     const { animatedHeight, pan } = this.state;
     if (visible) {
       this.setState({ modalVisible: visible });
+      this.addBackPressEventListner();
       Animated.timing(animatedHeight, {
         toValue: height,
         duration: 300
       }).start();
     } else {
+      this.removeBackPressEventListner();
       Animated.timing(animatedHeight, {
         toValue: 0,
         duration: 400
@@ -52,7 +74,7 @@ class BottomSheet extends Component {
 
   createPanResponder(props) {
     const { height,
-      draggable = true 
+      draggable = true
     } = props;
     const { pan } = this.state;
     this.panResponder = PanResponder.create({
@@ -82,56 +104,90 @@ class BottomSheet extends Component {
     this.setModalVisible(false);
   }
 
-  render() {
-    const {
-      children,
-      hasDraggableIcon,
-      backgroundColor,
-      dragIconColor
-    } = this.props;
-    const { animatedHeight, pan, modalVisible } = this.state;
+  _renderAnimatedView({
+    children,
+    hasDraggableIcon,
+    dragIconColor,
+    animatedHeight,
+    pan,
+  }) {
+
     const panStyle = {
       transform: pan.getTranslateTransform()
     };
+    return (
+      <>
+        <TouchableOpacity
+          style={styles.background}
+          activeOpacity={1}
+          onPress={() => this.close()}
+        />
+        <Animated.View
+          {...this.panResponder.panHandlers}
+          style={[panStyle, styles.container, { height: animatedHeight }]}
+        >
+          {hasDraggableIcon && (
+            <View style={styles.draggableContainer}>
+              <View
+                style={[
+                  styles.draggableIcon,
+                  {
+                    backgroundColor: dragIconColor || "#A3A3A3"
+                  }
+                ]}
+              />
+            </View>
+          )}
+          {children}
+        </Animated.View>
+      </>
+    )
+  }
+
+  render() {
+    const {
+      height,
+      backgroundColor,
+      useModal = true,
+    } = this.props;
+    const { modalVisible } = this.state;
+
 
     return (
-      <Modal
-        transparent
-        visible={modalVisible}
-        onRequestClose={() => this.setModalVisible(false)}
-      >
-        <View
-          style={[
-            styles.wrapper,
-            { backgroundColor: backgroundColor || "#25252599" }
-          ]}
+      <>
+        {useModal ? <Modal
+          transparent
+          visible={modalVisible}
+          onRequestClose={() => this.setModalVisible(false)}
         >
-          <TouchableOpacity
-            style={styles.background}
-            activeOpacity={1}
-            onPress={() => this.close()}
-          />
-          <Animated.View
-            {...this.panResponder.panHandlers}
-            style={[panStyle, styles.container, { height: animatedHeight }]}
+          <View
+            style={[
+              styles.wrapper,
+              { backgroundColor: backgroundColor || "#25252599" }
+            ]}
           >
-            {hasDraggableIcon && (
-              <View style={styles.draggableContainer}>
-                <View
-                  style={[
-                    styles.draggableIcon,
-                    {
-                      backgroundColor: dragIconColor || "#A3A3A3"
-                    }
-                  ]}
-                />
-              </View>
-            )}
-            {children}
-          </Animated.View>
-        </View>
-      </Modal>
-    );
+            {this._renderAnimatedView({ ...this.props, ...this.state })}
+          </View>
+        </Modal>
+          : modalVisible && this.setModalVisible &&
+          <View
+            style={[
+              styles.wrapper,
+              {
+                backgroundColor: backgroundColor || "#25252599",
+                height: height,
+                backgroundColor: backgroundColor || 'transparent',
+                position: 'absolute',
+                bottom: 0,
+                width: '100%'
+              }
+            ]}
+          >
+            {this._renderAnimatedView({ ...this.props, ...this.state })}
+          </View>
+        }
+      </>);
+
   }
 }
 
